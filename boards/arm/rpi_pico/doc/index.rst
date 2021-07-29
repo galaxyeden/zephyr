@@ -60,6 +60,12 @@ hardware features:
    * - I2C
      - :kconfig:`CONFIG_I2C`
      - :dtcompatible:`rpi,pico-i2c`
+   * - USB Device
+     - :kconfig:option:`CONFIG_USB_DEVICE_STACK`
+     - :dtcompatible:`raspberrypi,pico-usbd`
+   * - HWINFO
+     - :kconfig:option:`CONFIG_HWINFO`
+     - N/A
 
 Programming and Debugging
 *************************
