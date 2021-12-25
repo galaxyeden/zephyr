@@ -18,6 +18,7 @@
 #include <zephyr/arch/arm/aarch32/nmi.h>
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
+#include <zephyr/arch/arm/aarch32/cortex_m/cmsis.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/fatal.h>
 
@@ -25,7 +26,20 @@
 #include <hardware/clocks.h>
 #include <hardware/resets.h>
 
+#include <pico/bootrom.h>
+
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
+
+/* Overrides the weak ARM implementation:
+   Set general purpose retention register and reboot */
+void sys_arch_reboot(int type)
+{
+	if (type != 0) {
+		reset_usb_boot(0,0);
+	} else {
+		NVIC_SystemReset();
+	}
+}
 
 static int rp2040_init(void)
 {
