@@ -50,11 +50,9 @@ static int gpio_rpi_configure(const struct device *dev,
 		}
 	} else if (flags & GPIO_INPUT) {
 		gpio_set_dir(pin, GPIO_IN);
-		if (flags & GPIO_PULL_UP) {
-			gpio_pull_up(pin);
-		} else if (flags & GPIO_PULL_DOWN) {
-			gpio_pull_down(pin);
-		}
+		gpio_set_pulls(pin,
+			!!(flags & GPIO_PULL_UP),
+			!!(flags & GPIO_PULL_DOWN));
 	}
 
 	return 0;
@@ -119,6 +117,8 @@ static int gpio_rpi_pin_interrupt_configure(const struct device *dev,
 			}
 		}
 		gpio_set_irq_enabled(pin, events, true);
+	} else {
+		gpio_set_irq_enabled(pin, ALL_EVENTS, false);
 	}
 	WRITE_BIT(data->int_enabled_mask, pin, mode != GPIO_INT_DISABLE);
 	return 0;
