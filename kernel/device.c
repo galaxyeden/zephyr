@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <zephyr/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/syscall_handler.h>
 
@@ -84,6 +85,10 @@ void z_sys_init_run_level(int32_t level)
 				dev->state->init_res = rc;
 			}
 			dev->state->initialized = true;
+			if (rc == 0) {
+				/* Run automatic device runtime enablement */
+				(void)pm_device_runtime_auto_enable(dev);
+			}
 		}
 	}
 }

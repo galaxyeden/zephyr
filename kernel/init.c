@@ -34,6 +34,7 @@
 #include <kswap.h>
 #include <zephyr/timing/timing.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/pm/device_runtime.h>
 LOG_MODULE_REGISTER(os, CONFIG_KERNEL_LOG_LEVEL);
 
 /* the only struct z_kernel instance */
