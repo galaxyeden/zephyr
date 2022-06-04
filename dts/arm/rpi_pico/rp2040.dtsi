@@ -95,6 +95,8 @@
 			#size-cells = <0>;
 			reg = <0x4003c000 DT_SIZE_K(4)>;
 			clocks = <&peripheral_clk>;
+			interrupts = <18 RPI_PICO_DEFAULT_IRQ_PRIORITY>;
+			interrupt-names = "spi0";
 			label = "SPI_0";
 			status = "disabled";
 		};
@@ -105,6 +107,8 @@
 			#size-cells = <0>;
 			reg = <0x40040000 DT_SIZE_K(4)>;
 			clocks = <&peripheral_clk>;
+			interrupts = <19 RPI_PICO_DEFAULT_IRQ_PRIORITY>;
+			interrupt-names = "spi1";
 			label = "SPI_1";
 			status = "disabled";
 		};
