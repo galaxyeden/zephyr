@@ -1,0 +1,17 @@
+# Copyright (c) 2021 Pete Johanson
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD
+	default "adafruit_qt_py_esp32c3"
+	depends on BOARD_ADAFRUIT_QT_PY_ESP32C3
+
+if BT
+
+config HEAP_MEM_POOL_SIZE
+	default 16384
+
+choice BT_HCI_BUS_TYPE
+	default BT_ESP32
+endchoice
+
+endif # BT
