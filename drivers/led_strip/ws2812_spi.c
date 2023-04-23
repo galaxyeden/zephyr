@@ -19,6 +19,8 @@ LOG_MODULE_REGISTER(ws2812_spi);
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/dt-bindings/led/led.h>
@@ -148,7 +150,12 @@ static int ws2812_strip_update_rgb(const struct device *dev,
 	/*
 	 * Display the pixel data.
 	 */
+	rc = pm_device_runtime_get(cfg->bus.bus);
+	if (rc < 0) {
+		return rc;
+	}
 	rc = spi_write_dt(&cfg->bus, &tx);
+	pm_device_runtime_put(cfg->bus.bus);
 	ws2812_reset_delay(cfg->reset_delay);
 
 	return rc;
@@ -189,6 +196,25 @@ static int ws2812_spi_init(const struct device *dev)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_DEVICE
+static int ws2812_spi_pm_action(const struct device *dev,
+			        enum pm_device_action action)
+{
+	int ret = 0;
+
+	switch (action) {
+		case PM_DEVICE_ACTION_RESUME:
+		case PM_DEVICE_ACTION_SUSPEND:
+			break;
+
+		default:
+			ret = -ENOTSUP;
+	}
+
+	return ret;
+}
+#endif
 
 static const struct led_strip_driver_api ws2812_spi_api = {
 	.update_rgb = ws2812_strip_update_rgb,
@@ -235,10 +261,11 @@ static const struct led_strip_driver_api ws2812_spi_api = {
 		.color_mapping = ws2812_spi_##idx##_color_mapping,	 \
 		.reset_delay = WS2812_RESET_DELAY(idx),			 \
 	};								 \
+	PM_DEVICE_DT_INST_DEFINE(idx, ws2812_spi_pm_action);		 \
 									 \
 	DEVICE_DT_INST_DEFINE(idx,					 \
 			      ws2812_spi_init,				 \
-			      NULL,					 \
+			      PM_DEVICE_DT_INST_GET(idx),		 \
 			      NULL,					 \
 			      &ws2812_spi_##idx##_cfg,			 \
 			      POST_KERNEL,				 \
