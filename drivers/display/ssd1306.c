@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(ssd1306, CONFIG_DISPLAY_LOG_LEVEL);
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/kernel.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #include "ssd1306_regs.h"
 
@@ -455,13 +457,65 @@ static int ssd1306_init(const struct device *dev)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_PM_DEVICE)
+	if (pm_device_on_power_domain(dev)) {
+		pm_device_init_off(dev);
+	} else {
+		pm_device_init_suspended(dev);
+	}
+#else
 	if (ssd1306_init_device(dev)) {
 		LOG_ERR("Failed to initialize device!");
 		return -EIO;
 	}
+#endif
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_DEVICE
+static int ssd1306_pm_action(const struct device *dev,
+			      enum pm_device_action action)
+{
+	int ret = 0;
+	const struct ssd1306_config *config = dev->config;
+
+	switch (action) {
+		case PM_DEVICE_ACTION_TURN_ON:
+			if (config->reset.port) {
+				ret = gpio_pin_configure_dt(&config->reset,
+							    GPIO_OUTPUT_INACTIVE);
+			}
+
+			break;
+		case PM_DEVICE_ACTION_TURN_OFF:
+			if (config->reset.port) {
+				ret = gpio_pin_configure_dt(&config->reset,
+							    GPIO_DISCONNECTED);
+			}
+
+			break;
+		case PM_DEVICE_ACTION_RESUME:
+			if (ssd1306_init_device(dev)) {
+				LOG_ERR("Failed to initialize device!");
+				return -EIO;
+			}
+
+			break;
+
+		case PM_DEVICE_ACTION_SUSPEND:
+			// We don't need to do anything when suspending, but we
+			// don't want to return -ENOTSUP
+			// So we keep this empty on purpose.
+			break;
+
+		default:
+			ret = -ENOTSUP;
+	}
+
+	return ret;
+}
+#endif /* CONFIG_PM_DEVICE */
 
 static struct display_driver_api ssd1306_driver_api = {
 	.blanking_on = ssd1306_suspend,
@@ -492,6 +546,7 @@ static struct display_driver_api ssd1306_driver_api = {
 	.data_cmd = {0},
 
 #define SSD1306_DEFINE(node_id)                                                                    \
+	PM_DEVICE_DT_DEFINE(node_id, ssd1306_pm_action);                                      \
 	static struct ssd1306_data data##node_id;                                                  \
 	static const struct ssd1306_config config##node_id = {                                     \
 		.reset = GPIO_DT_SPEC_GET_OR(node_id, reset_gpios, {0}),                           \
@@ -512,8 +567,9 @@ static struct display_driver_api ssd1306_driver_api = {
 			    (SSD1306_CONFIG_I2C(node_id)))                                         \
 	};                                                                                         \
                                                                                                    \
-	DEVICE_DT_DEFINE(node_id, ssd1306_init, NULL, &data##node_id, &config##node_id,            \
-			 POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY, &ssd1306_driver_api);
+	DEVICE_DT_DEFINE(node_id, ssd1306_init, PM_DEVICE_DT_GET(node_id), &data##node_id,    \
+			 &config##node_id, POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY,              \
+			 &ssd1306_driver_api);
 
 DT_FOREACH_STATUS_OKAY(solomon_ssd1306fb, SSD1306_DEFINE)
 DT_FOREACH_STATUS_OKAY(sinowealth_sh1106, SSD1306_DEFINE)
