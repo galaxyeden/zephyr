@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(ssd1306, CONFIG_DISPLAY_LOG_LEVEL);
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #include "ssd1306_regs.h"
 #include <zephyr/display/cfb.h>
@@ -418,13 +420,66 @@ static int ssd1306_init(const struct device *dev)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_PM_DEVICE)
+	if (pm_device_on_power_domain(dev)) {
+		pm_device_init_off(dev);
+	} else {
+		pm_device_init_suspended(dev);
+	}
+#else
 	if (ssd1306_init_device(dev)) {
 		LOG_ERR("Failed to initialize device!");
 		return -EIO;
 	}
+#endif
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_DEVICE
+static int ssd1306_pm_action(const struct device *dev,
+			      enum pm_device_action action)
+{
+	int ret = 0;
+	const struct ssd1306_config *config = dev->config;
+
+	switch (action) {
+		case PM_DEVICE_ACTION_TURN_ON:
+			if (config->reset.port) {
+				ret = gpio_pin_configure_dt(&config->reset,
+							    GPIO_OUTPUT_INACTIVE);
+			}
+
+			break;
+		case PM_DEVICE_ACTION_TURN_OFF:
+			if (config->reset.port) {
+				ret = gpio_pin_configure_dt(&config->reset,
+							    GPIO_DISCONNECTED);
+			}
+
+			break;
+		case PM_DEVICE_ACTION_RESUME:
+			if (ssd1306_init_device(dev)) {
+				LOG_ERR("Failed to initialize device!");
+				return -EIO;
+			}
+
+			break;
+
+		case PM_DEVICE_ACTION_SUSPEND:
+			// We don't need to do anything when suspending, but we
+			// don't want to return -ENOTSUP
+			// So we keep this empty on purpose.
+			break;
+
+		default:
+			ret = -ENOTSUP;
+	}
+
+	return ret;
+}
+PM_DEVICE_DT_INST_DEFINE(0, ssd1306_pm_action);
+#endif /* CONFIG_PM_DEVICE */
 
 static const struct ssd1306_config ssd1306_config = {
 #if DT_INST_ON_BUS(0, i2c)
@@ -452,7 +507,7 @@ static struct display_driver_api ssd1306_driver_api = {
 	.set_orientation = ssd1306_set_orientation,
 };
 
-DEVICE_DT_INST_DEFINE(0, ssd1306_init, NULL,
+DEVICE_DT_INST_DEFINE(0, ssd1306_init, PM_DEVICE_DT_INST_GET(0),
 		      &ssd1306_driver, &ssd1306_config,
 		      POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY,
 		      &ssd1306_driver_api);
