@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(ls0xx, CONFIG_DISPLAY_LOG_LEVEL);
 #include <zephyr/init.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/sys/byteorder.h>
 
 /* Supports LS012B7DD01, LS012B7DD06, LS013B7DH03, LS013B7DH05
@@ -52,6 +54,12 @@ struct ls0xx_config {
 #endif
 };
 
+struct ls0xx_data {
+#if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+	k_tid_t extcomin_thread_id;
+#endif
+} ls0xx_data;
+
 #if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
 /* Driver will handle VCOM toggling */
 static void ls0xx_vcom_toggle(void *a, void *b, void *c)
@@ -82,6 +90,8 @@ static int ls0xx_blanking_off(const struct device *dev)
 #endif
 }
 
+static int ls0xx_clear(const struct device *dev);
+
 static int ls0xx_blanking_on(const struct device *dev)
 {
 #if DT_INST_NODE_HAS_PROP(0, disp_en_gpios)
@@ -89,8 +99,7 @@ static int ls0xx_blanking_on(const struct device *dev)
 
 	return gpio_pin_set_dt(&config->disp_en_gpio, 0);
 #else
-	LOG_WRN("Unsupported");
-	return -ENOTSUP;
+	return ls0xx_clear(dev);
 #endif
 }
 
@@ -263,6 +272,7 @@ static int ls0xx_set_pixel_format(const struct device *dev,
 static int ls0xx_init(const struct device *dev)
 {
 	const struct ls0xx_config *config = dev->config;
+	struct ls0xx_data *data = dev->data;
 
 	if (!spi_is_ready_dt(&config->bus)) {
 		LOG_ERR("SPI bus %s not ready", config->bus.bus->name);
@@ -287,18 +297,64 @@ static int ls0xx_init(const struct device *dev)
 	gpio_pin_configure_dt(&config->extcomin_gpio, GPIO_OUTPUT_LOW);
 
 	/* Start thread for toggling VCOM */
-	k_tid_t vcom_toggle_tid = k_thread_create(&vcom_toggle_thread,
+	data->extcomin_thread_id = k_thread_create(&vcom_toggle_thread,
 						  vcom_toggle_stack,
 						  K_THREAD_STACK_SIZEOF(vcom_toggle_stack),
 						  ls0xx_vcom_toggle,
 						  (void *)config, NULL, NULL,
 						  3, 0, K_NO_WAIT);
-	k_thread_name_set(vcom_toggle_tid, "ls0xx_vcom");
+	k_thread_name_set(data->extcomin_thread_id, "ls0xx_vcom");
 #endif  /* DT_INST_NODE_HAS_PROP(0, extcomin_gpios) */
 
+#if IS_ENABLED(CONFIG_PM_DEVICE)
+	if (pm_device_on_power_domain(dev)) {
+		pm_device_init_off(dev);
+	} else {
+		pm_device_init_suspended(dev);
+	}
+
+	return 0;
+#else
 	/* Clear display else it shows random data */
 	return ls0xx_clear(dev);
+#endif
 }
+
+
+#ifdef CONFIG_PM_DEVICE
+static int ls0xx_pm_action(const struct device *dev,
+			      enum pm_device_action action)
+{
+	int ret = 0;
+	const struct ls0xx_config *config = dev->config;
+	struct ls0xx_data *data = dev->data;
+
+	switch (action) {
+		case PM_DEVICE_ACTION_RESUME:
+#if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+			k_thread_resume(data->extcomin_thread_id);
+#endif
+			if (ls0xx_clear(dev)) {
+				LOG_ERR("Failed to initialize device!");
+				return -EIO;
+			}
+
+			break;
+
+		case PM_DEVICE_ACTION_SUSPEND:
+#if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+			k_thread_suspend(data->extcomin_thread_id);
+#endif
+			break;
+
+		default:
+			ret = -ENOTSUP;
+	}
+
+	return ret;
+}
+PM_DEVICE_DT_INST_DEFINE(0, ls0xx_pm_action);
+#endif /* CONFIG_PM_DEVICE */
 
 static const struct ls0xx_config ls0xx_config = {
 	.bus = SPI_DT_SPEC_INST_GET(
@@ -326,5 +382,7 @@ static struct display_driver_api ls0xx_driver_api = {
 	.set_orientation = ls0xx_set_orientation,
 };
 
-DEVICE_DT_INST_DEFINE(0, ls0xx_init, NULL, NULL, &ls0xx_config, POST_KERNEL,
-		      CONFIG_DISPLAY_INIT_PRIORITY, &ls0xx_driver_api);
+DEVICE_DT_INST_DEFINE(0, ls0xx_init, PM_DEVICE_DT_INST_GET(0), &ls0xx_data,
+		      &ls0xx_config, POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY,
+		      &ls0xx_driver_api);
+
