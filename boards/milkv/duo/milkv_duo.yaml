@@ -1,0 +1,14 @@
+identifier: milkv_duo_coproc
+name: Milk-V Duo Coproc
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+supported:
+  - clock
+  - gpio
+  - interrupt-controller
+  - mailbox
+  - pinctrl
+  - pwm
+  - serial
