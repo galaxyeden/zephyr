@@ -12,3 +12,7 @@ properties:
     required: true
   interrupts-extended:
     required: true
+  force-32bit:
+    type: boolean
+  mtime-csr-read:
+    type: boolean

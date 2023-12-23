@@ -22,6 +22,9 @@
 
 #define CYC_PER_TICK (uint32_t)(sys_clock_hw_cycles_per_sec() / CONFIG_SYS_CLOCK_TICKS_PER_SEC)
 
+#define MTIMER_64BIT (CONFIG_64BIT && !DT_INST_PROP(0, force_32bit))
+#define MTIMER_CSR_READ_MTIME DT_INST_PROP(0, mtime_csr_read)
+
 /* the unsigned long cast limits divisions to native CPU register width */
 #define cycle_diff_t   unsigned long
 #define CYCLE_DIFF_MAX (~(cycle_diff_t)0)
@@ -67,7 +70,7 @@ static uintptr_t get_hart_mtimecmp(void)
 
 static void set_mtimecmp(uint64_t time)
 {
-#ifdef CONFIG_64BIT
+#if MTIMER_64BIT
 	*(volatile uint64_t *)get_hart_mtimecmp() = time;
 #else
 	volatile uint32_t *r = (uint32_t *)get_hart_mtimecmp();
@@ -86,7 +89,9 @@ static void set_mtimecmp(uint64_t time)
 
 static uint64_t mtime(void)
 {
-#ifdef CONFIG_64BIT
+#if MTIMER_CSR_READ_MTIME
+	return csr_read(time);
+#elif MTIMER_64BIT
 	return *(volatile uint64_t *)MTIME_REG;
 #else
 	volatile uint32_t *r = (uint32_t *)MTIME_REG;
