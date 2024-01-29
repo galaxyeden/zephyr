@@ -6,6 +6,7 @@
 
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
+#include <zephyr/pm/device_runtime.h>
 #include <lvgl.h>
 #include "lvgl_display.h"
 #include "lvgl_common_input.h"
@@ -203,6 +204,12 @@ static int lvgl_init(void)
 		return -ENODEV;
 	}
 
+	err = pm_device_runtime_get(display_dev);
+	if (err < 0) {
+		LOG_ERR("Failed to get PM device");
+		return -ENODEV;
+	}
+
 #ifdef CONFIG_LV_Z_MEM_POOL_SYS_HEAP
 	lvgl_heap_init();
 #endif
@@ -247,6 +254,8 @@ static int lvgl_init(void)
 		LOG_ERR("Failed to initialize input devices.");
 		return err;
 	}
+
+	pm_device_runtime_put(display_dev);
 
 	return 0;
 }
