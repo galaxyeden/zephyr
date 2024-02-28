@@ -1,0 +1,42 @@
+# Copyright (c) 2024 Chen Xingyu <hi@xingrz.me>
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_CV181X
+	bool
+	select SOC_FAMILY_SOPHGO
+
+config SOC_SERIES_CV181X_C906
+	bool
+	select SOC_SERIES_CV181X
+
+config SOC_SERIES_CV181X_MAIN_C906
+	bool
+	select SOC_SERIES_CV181X_C906
+	select SOC_SERIES_CV181X_MAIN
+
+config SOC_SERIES_CV181X_COPROC
+	bool
+	select SOC_SERIES_CV181X_C906
+
+config SOC_SERIES
+	default "cv181x" if SOC_SERIES_CV181X
+
+config SOC_SG2000_MAIN_C906
+	bool
+	select SOC_SERIES_CV181X_MAIN_C906
+
+config SOC_SG2000_COPROC_C906
+	bool
+	select SOC_SERIES_CV181X_COPROC
+
+config SOC_SG2002_MAIN_C906
+	bool
+	select SOC_SERIES_CV181X_MAIN_C906
+
+config SOC_SG2002_COPROC_C906
+	bool
+	select SOC_SERIES_CV181X_COPROC
+
+config SOC
+	default "sg2000" if SOC_SG2000_MAIN_C906 || SOC_SG2000_COPROC_C906
+	default "sg2002" if SOC_SG2002_MAIN_C906 || SOC_SG2002_COPROC_C906

@@ -1,0 +1,19 @@
+family:
+- name: sophgo
+  series:
+  - name: cv180x
+    socs:
+    - name: cv1800b
+      cpuclusters:
+        - name: main
+        - name: coproc
+  - name: cv181x
+    socs:
+    - name: sg2000
+      cpuclusters:
+        - name: main_c906
+        - name: coproc
+    - name: sg2002
+      cpuclusters:
+        - name: main_c906
+        - name: coproc
