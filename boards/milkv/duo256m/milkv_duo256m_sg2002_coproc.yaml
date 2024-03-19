@@ -1,0 +1,14 @@
+identifier: milkv_duo256m_sg2002_coproc
+name: Milk-V Duo 256M SG2002 Co-Processor
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+supported:
+  - clock
+  - gpio
+  - interrupt-controller
+  - mailbox
+  - pinctrl
+  - pwm
+  - serial

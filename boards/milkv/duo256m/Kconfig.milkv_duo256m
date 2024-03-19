@@ -1,0 +1,7 @@
+# Copyright (c) 2024 Chen Xingyu <hi@xingrz.me>
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_MILKV_DUO256M
+	select SOC_SG2002
+	select SOC_SG2002_MAIN_C906 if BOARD_MILKV_DUO256M_SG2002_MAIN_C906
+	select SOC_SG2002_COPROC_C906 if BOARD_MILKV_DUO256M_SG2002_COPROC
