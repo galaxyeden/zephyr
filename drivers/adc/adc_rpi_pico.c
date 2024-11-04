@@ -21,7 +21,7 @@ LOG_MODULE_REGISTER(adc_rpi, CONFIG_ADC_LOG_LEVEL);
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
 
-#define ADC_RPI_MAX_RESOLUTION 12
+#define ADC_RPI_RESOLUTION 12
 
 /** Bits numbers of rrobin register mean an available number of channels. */
 #define ADC_RPI_CHANNEL_NUM (ADC_CS_RROBIN_MSB - ADC_CS_RROBIN_LSB + 1)
@@ -179,8 +179,7 @@ static int adc_rpi_start_read(const struct device *dev,
 	struct adc_rpi_data *data = dev->data;
 	int err;
 
-	if (sequence->resolution > ADC_RPI_MAX_RESOLUTION ||
-	    sequence->resolution == 0) {
+	if (sequence->resolution != ADC_RPI_RESOLUTION) {
 		LOG_ERR("unsupported resolution %d", sequence->resolution);
 		return -ENOTSUP;
 	}
