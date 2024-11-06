@@ -781,7 +781,7 @@ struct _static_thread_data {
 #define K_THREAD_DEFINE(name, stack_size,                                \
 			entry, p1, p2, p3,                               \
 			prio, options, delay)                            \
-	K_THREAD_STACK_DEFINE(_k_thread_stack_##name, stack_size);	 \
+	K_THREAD_STACK_DEFINE(_CONCAT(_k_thread_stack_, name), stack_size);	 \
 	Z_THREAD_COMMON_DEFINE(name, stack_size, entry, p1, p2, p3,	 \
 			       prio, options, delay)
 
@@ -3442,6 +3442,14 @@ bool k_work_cancel_sync(struct k_work *work, struct k_work_sync *sync);
  * @param queue the queue structure to be initialized.
  */
 void k_work_queue_init(struct k_work_q *queue);
+
+/** @brief Run work queue using calling thread
+ *
+ * This will run the work queue forever, the function never returns
+ *
+ * @param queue the queue to run
+ */
+void k_work_queue_run(struct k_work_q *queue);
 
 /** @brief Initialize a work queue.
  *

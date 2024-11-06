@@ -707,6 +707,17 @@ void k_work_queue_init(struct k_work_q *queue)
 	SYS_PORT_TRACING_OBJ_INIT(k_work_queue, queue);
 }
 
+void k_work_queue_run(struct k_work_q *queue)
+{
+	__ASSERT_NO_MSG(!flag_test(&queue->flags, K_WORK_QUEUE_STARTED_BIT));
+
+	sys_slist_init(&queue->pending);
+	z_waitq_init(&queue->notifyq);
+	z_waitq_init(&queue->drainq);
+	flags_set(&queue->flags, K_WORK_QUEUE_STARTED | K_WORK_QUEUE_NO_YIELD);
+	work_queue_main(queue, NULL, NULL);
+}
+
 void k_work_queue_start(struct k_work_q *queue,
 			k_thread_stack_t *stack,
 			size_t stack_size,
