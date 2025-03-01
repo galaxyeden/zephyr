@@ -256,7 +256,7 @@ static inline int queue_submit_locked(struct k_work_q *queue,
 	}
 
 	int ret = -EBUSY;
-	bool chained = (_current == &queue->thread) && !k_is_in_isr();
+	bool chained = (_current == queue->thread_id) && !k_is_in_isr();
 	bool draining = flag_test(&queue->flags, K_WORK_QUEUE_DRAIN_BIT);
 	bool plugged = flag_test(&queue->flags, K_WORK_QUEUE_PLUGGED_BIT);
 
@@ -707,14 +707,24 @@ void k_work_queue_init(struct k_work_q *queue)
 	SYS_PORT_TRACING_OBJ_INIT(k_work_queue, queue);
 }
 
-void k_work_queue_run(struct k_work_q *queue)
+void k_work_queue_run(struct k_work_q *queue, const struct k_work_queue_config *cfg)
 {
 	__ASSERT_NO_MSG(!flag_test(&queue->flags, K_WORK_QUEUE_STARTED_BIT));
+
+	uint32_t flags = K_WORK_QUEUE_STARTED;
+	if ((cfg != NULL) && cfg->no_yield) {
+		flags |= K_WORK_QUEUE_NO_YIELD;
+	}
+
+	if ((cfg != NULL) && (cfg->name != NULL)) {
+		k_thread_name_set(_current, cfg->name);
+	}
 
 	sys_slist_init(&queue->pending);
 	z_waitq_init(&queue->notifyq);
 	z_waitq_init(&queue->drainq);
-	flags_set(&queue->flags, K_WORK_QUEUE_STARTED | K_WORK_QUEUE_NO_YIELD);
+	queue->thread_id = _current;
+	flags_set(&queue->flags, flags);
 	work_queue_main(queue, NULL, NULL);
 }
 
@@ -727,6 +737,7 @@ void k_work_queue_start(struct k_work_q *queue,
 	__ASSERT_NO_MSG(queue);
 	__ASSERT_NO_MSG(stack);
 	__ASSERT_NO_MSG(!flag_test(&queue->flags, K_WORK_QUEUE_STARTED_BIT));
+
 	uint32_t flags = K_WORK_QUEUE_STARTED;
 
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_work_queue, start, queue);
@@ -754,6 +765,7 @@ void k_work_queue_start(struct k_work_q *queue,
 	}
 
 	k_thread_start(&queue->thread);
+	queue->thread_id = &queue->thread;
 
 	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_work_queue, start, queue);
 }

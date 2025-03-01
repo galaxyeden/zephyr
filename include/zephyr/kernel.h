@@ -3449,7 +3449,7 @@ void k_work_queue_init(struct k_work_q *queue);
  *
  * @param queue the queue to run
  */
-void k_work_queue_run(struct k_work_q *queue);
+void k_work_queue_run(struct k_work_q *queue, const struct k_work_queue_config *cfg);
 
 /** @brief Initialize a work queue.
  *
@@ -4018,8 +4018,12 @@ struct k_work_queue_config {
 
 /** @brief A structure used to hold work until it can be processed. */
 struct k_work_q {
-	/* The thread that animates the work. */
+	/* The internal thread that animates the work, if started normally. */
 	struct k_thread thread;
+
+	/* The ID of thread that animates the work, either the ID of the internal thread,  running from
+	 * or that of the thread that invoked k_work_queue_run. */
+	k_tid_t thread_id;
 
 	/* All the following fields must be accessed only while the
 	 * work module spinlock is held.
@@ -4071,7 +4075,7 @@ static inline k_ticks_t k_work_delayable_remaining_get(
 
 static inline k_tid_t k_work_queue_thread_get(struct k_work_q *queue)
 {
-	return &queue->thread;
+	return queue->thread_id;
 }
 
 /** @} */
