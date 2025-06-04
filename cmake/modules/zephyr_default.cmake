@@ -96,6 +96,7 @@ list(APPEND zephyr_cmake_modules zephyr_module)
 
 list(APPEND zephyr_cmake_modules boards)
 list(APPEND zephyr_cmake_modules shields)
+list(APPEND zephyr_cmake_modules post_boards_shields)
 list(APPEND zephyr_cmake_modules snippets)
 list(APPEND zephyr_cmake_modules arch_v1)
 list(APPEND zephyr_cmake_modules hwm_v2)
