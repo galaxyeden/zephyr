@@ -324,7 +324,7 @@ manifest:
       revision: e35f707a782b7c4c0eb83a3b06ca4e6eb693f29f
       path: modules/lib/nrf_wifi
     - name: open-amp
-      revision: 52bb1783521c62c019451cee9b05b8eda9d7425f
+      revision: c30a6d8b92fcebdb797fc1a7698e8729e250f637
       path: modules/lib/open-amp
     - name: openthread
       revision: 3ae741f95e7dfb391dec35c48742862049eb62e8
