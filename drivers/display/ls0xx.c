@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT   sharp_ls0xx
+#define DT_DRV_COMPAT sharp_ls0xx
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ls0xx, CONFIG_DISPLAY_LOG_LEVEL);
@@ -26,10 +26,10 @@ LOG_MODULE_REGISTER(ls0xx, CONFIG_DISPLAY_LOG_LEVEL);
  * -> Display expects LSB first
  */
 
-#define LS0XX_PANEL_WIDTH   DT_INST_PROP(0, width)
-#define LS0XX_PANEL_HEIGHT  DT_INST_PROP(0, height)
+#define LS0XX_PANEL_WIDTH  DT_INST_PROP(0, width)
+#define LS0XX_PANEL_HEIGHT DT_INST_PROP(0, height)
 
-#define LS0XX_PIXELS_PER_BYTE  8U
+#define LS0XX_PIXELS_PER_BYTE 8U
 /* Adding 2 for the line number and dummy byte
  * line_buf format for each row.
  * +-------------------+-------------------+----------------+
@@ -38,9 +38,15 @@ LOG_MODULE_REGISTER(ls0xx, CONFIG_DISPLAY_LOG_LEVEL);
  */
 #define LS0XX_BYTES_PER_LINE  ((LS0XX_PANEL_WIDTH / LS0XX_PIXELS_PER_BYTE) + 2)
 
-#define LS0XX_BIT_WRITECMD    0x01
-#define LS0XX_BIT_VCOM        0x02
-#define LS0XX_BIT_CLEAR       0x04
+#define LS0XX_BIT_WRITECMD 0x01
+#define LS0XX_BIT_VCOM     0x02
+#define LS0XX_BIT_CLEAR    0x04
+
+struct ls0xx_data {
+#if !DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+	bool vcom_state;
+#endif
+};
 
 struct ls0xx_config {
 	struct spi_dt_spec bus;
@@ -51,24 +57,6 @@ struct ls0xx_config {
 	struct gpio_dt_spec extcomin_gpio;
 #endif
 };
-
-#if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
-/* Driver will handle VCOM toggling */
-static void ls0xx_vcom_toggle(void *a, void *b, void *c)
-{
-	const struct ls0xx_config *config = a;
-
-	while (1) {
-		gpio_pin_toggle_dt(&config->extcomin_gpio);
-		k_usleep(3);
-		gpio_pin_toggle_dt(&config->extcomin_gpio);
-		k_msleep(1000 / DT_INST_PROP(0, extcomin_frequency));
-	}
-}
-
-K_THREAD_STACK_DEFINE(vcom_toggle_stack, 256);
-struct k_thread vcom_toggle_thread;
-#endif
 
 static int ls0xx_blanking_off(const struct device *dev)
 {
@@ -97,16 +85,44 @@ static int ls0xx_blanking_on(const struct device *dev)
 static int ls0xx_cmd(const struct device *dev, uint8_t *buf, uint8_t len)
 {
 	const struct ls0xx_config *config = dev->config;
-	struct spi_buf cmd_buf = { .buf = buf, .len = len };
-	struct spi_buf_set buf_set = { .buffers = &cmd_buf, .count = 1 };
-
+	struct spi_buf cmd_buf = {.buf = buf, .len = len};
+	struct spi_buf_set buf_set = {.buffers = &cmd_buf, .count = 1};
+#if !DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+	struct ls0xx_data *data = dev->data;
+	buf[0] |= data->vcom_state ? LS0XX_BIT_VCOM : 0;
+	data->vcom_state = !data->vcom_state;
+#endif
 	return spi_write_dt(&config->bus, &buf_set);
 }
+
+/* Driver will handle VCOM toggling */
+static void ls0xx_vcom_toggle(void *a, void *b, void *c)
+{
+	const struct device *dev = a;
+	const struct ls0xx_config *config = dev->config;
+	while (1) {
+#if DT_INST_NODE_HAS_PROP(0, extcomin_gpios)
+		gpio_pin_toggle_dt(&config->extcomin_gpio);
+		k_usleep(3);
+		gpio_pin_toggle_dt(&config->extcomin_gpio);
+		k_msleep(1000 / DT_INST_PROP(0, extcomin_frequency));
+#else
+		uint8_t empty_cmd[2] = {0, 0};
+		/* Send empty command to toggle VCOM */
+		ls0xx_cmd(dev, empty_cmd, sizeof(empty_cmd));
+		spi_release_dt(&config->bus);
+		k_msleep(1000);
+#endif
+	}
+}
+
+K_THREAD_STACK_DEFINE(vcom_toggle_stack, 512);
+struct k_thread vcom_toggle_thread;
 
 static int ls0xx_clear(const struct device *dev)
 {
 	const struct ls0xx_config *config = dev->config;
-	uint8_t clear_cmd[2] = { LS0XX_BIT_CLEAR, 0 };
+	uint8_t clear_cmd[2] = {LS0XX_BIT_CLEAR, 0};
 	int err;
 
 	err = ls0xx_cmd(dev, clear_cmd, sizeof(clear_cmd));
@@ -115,13 +131,11 @@ static int ls0xx_clear(const struct device *dev)
 	return err;
 }
 
-static int ls0xx_update_display(const struct device *dev,
-				uint16_t start_line,
-				uint16_t num_lines,
+static int ls0xx_update_display(const struct device *dev, uint16_t start_line, uint16_t num_lines,
 				const uint8_t *data)
 {
 	const struct ls0xx_config *config = dev->config;
-	uint8_t write_cmd[1] = { LS0XX_BIT_WRITECMD };
+	uint8_t write_cmd[1] = {LS0XX_BIT_WRITECMD};
 	uint8_t ln = start_line;
 	uint8_t dummy = 27;
 	struct spi_buf line_buf[3] = {
@@ -167,10 +181,8 @@ static int ls0xx_update_display(const struct device *dev,
 }
 
 /* Buffer width should be equal to display width */
-static int ls0xx_write(const struct device *dev, const uint16_t x,
-		       const uint16_t y,
-		       const struct display_buffer_descriptor *desc,
-		       const void *buf)
+static int ls0xx_write(const struct device *dev, const uint16_t x, const uint16_t y,
+		       const struct display_buffer_descriptor *desc, const void *buf)
 {
 	LOG_DBG("X: %d, Y: %d, W: %d, H: %d", x, y, desc->width, desc->height);
 
@@ -203,8 +215,7 @@ static int ls0xx_write(const struct device *dev, const uint16_t x,
 	return ls0xx_update_display(dev, y + 1, desc->height, buf);
 }
 
-static void ls0xx_get_capabilities(const struct device *dev,
-				   struct display_capabilities *caps)
+static void ls0xx_get_capabilities(const struct device *dev, struct display_capabilities *caps)
 {
 	memset(caps, 0, sizeof(struct display_capabilities));
 	caps->x_resolution = LS0XX_PANEL_WIDTH;
@@ -214,8 +225,7 @@ static void ls0xx_get_capabilities(const struct device *dev,
 	caps->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
 }
 
-static int ls0xx_set_pixel_format(const struct device *dev,
-				  const enum display_pixel_format pf)
+static int ls0xx_set_pixel_format(const struct device *dev, const enum display_pixel_format pf)
 {
 	if (pf == PIXEL_FORMAT_MONO01) {
 		return 0;
@@ -228,6 +238,7 @@ static int ls0xx_set_pixel_format(const struct device *dev,
 static int ls0xx_init(const struct device *dev)
 {
 	const struct ls0xx_config *config = dev->config;
+	struct ls0xx_data *data = dev->data;
 
 	if (!spi_is_ready_dt(&config->bus)) {
 		LOG_ERR("SPI bus %s not ready", config->bus.bus->name);
@@ -250,26 +261,27 @@ static int ls0xx_init(const struct device *dev)
 	}
 	LOG_INF("Configuring EXTCOMIN pin");
 	gpio_pin_configure_dt(&config->extcomin_gpio, GPIO_OUTPUT_LOW);
+#else
+	data->vcom_state = false;
+#endif /* DT_INST_NODE_HAS_PROP(0, extcomin_gpios) */
 
 	/* Start thread for toggling VCOM */
-	k_tid_t vcom_toggle_tid = k_thread_create(&vcom_toggle_thread,
-						  vcom_toggle_stack,
-						  K_THREAD_STACK_SIZEOF(vcom_toggle_stack),
-						  ls0xx_vcom_toggle,
-						  (void *)config, NULL, NULL,
-						  3, 0, K_NO_WAIT);
+	k_tid_t vcom_toggle_tid = k_thread_create(
+		&vcom_toggle_thread, vcom_toggle_stack, K_THREAD_STACK_SIZEOF(vcom_toggle_stack),
+		ls0xx_vcom_toggle, (void *)dev, NULL, NULL, 3, 0, K_NO_WAIT);
 	k_thread_name_set(vcom_toggle_tid, "ls0xx_vcom");
-#endif  /* DT_INST_NODE_HAS_PROP(0, extcomin_gpios) */
 
 	/* Clear display else it shows random data */
 	return ls0xx_clear(dev);
 }
 
+static struct ls0xx_data ls0xx_data;
+
 static const struct ls0xx_config ls0xx_config = {
-	.bus = SPI_DT_SPEC_INST_GET(
-		0, SPI_OP_MODE_MASTER | SPI_WORD_SET(8) |
-		SPI_TRANSFER_LSB | SPI_CS_ACTIVE_HIGH |
-		SPI_HOLD_ON_CS | SPI_LOCK_ON, 0),
+	.bus = SPI_DT_SPEC_INST_GET(0,
+				    SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_LSB |
+					    SPI_CS_ACTIVE_HIGH | SPI_HOLD_ON_CS | SPI_LOCK_ON,
+				    0),
 #if DT_INST_NODE_HAS_PROP(0, disp_en_gpios)
 	.disp_en_gpio = GPIO_DT_SPEC_INST_GET(0, disp_en_gpios),
 #endif
@@ -286,5 +298,5 @@ static DEVICE_API(display, ls0xx_driver_api) = {
 	.set_pixel_format = ls0xx_set_pixel_format,
 };
 
-DEVICE_DT_INST_DEFINE(0, ls0xx_init, NULL, NULL, &ls0xx_config, POST_KERNEL,
+DEVICE_DT_INST_DEFINE(0, ls0xx_init, NULL, &ls0xx_data, &ls0xx_config, POST_KERNEL,
 		      CONFIG_DISPLAY_INIT_PRIORITY, &ls0xx_driver_api);
