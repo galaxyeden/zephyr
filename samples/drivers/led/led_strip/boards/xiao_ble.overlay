@@ -1,0 +1,50 @@
+/*
+ * Copyright (c) 2019, Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/led/led.h>
+
+#include "../nrf52-bindings.h"
+
+&spi2 {
+	compatible = "nordic,nrf-spim";
+  status = "okay";
+	led_strip: ws2812@0 {
+    status = "okay";
+		compatible = "worldsemi,ws2812-spi";
+
+		/* SPI */
+		reg = <0>; /* ignored, but necessary for SPI bindings */
+		spi-max-frequency = <SPI_FREQ>;
+
+		/* WS2812 */
+		chain-length = <128>; /* arbitrary; change at will */
+		color-mapping = <
+    LED_COLOR_ID_BLUE
+    LED_COLOR_ID_GREEN
+    LED_COLOR_ID_RED
+				 >;
+		spi-one-frame = <ONE_FRAME>;
+		spi-zero-frame = <ZERO_FRAME>;
+	};
+};
+
+zephyr_udc0: &usbd {
+	compatible = "nordic,nrf-usbd";
+	status = "okay";
+		cdc_acm_console_uart: cdc_acm_console_uart {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+/ {
+  chosen {
+		zephyr,console = &cdc_acm_console_uart;
+		zephyr,shell-uart = &cdc_acm_console_uart;
+  };
+	aliases {
+		led-strip = &led_strip;
+	};
+};
