@@ -329,7 +329,7 @@ static int ls0xx_init(const struct device *dev)
 	/* Start thread for toggling VCOM */
 	k_tid_t vcom_toggle_tid = k_thread_create(
 		&vcom_toggle_thread, vcom_toggle_stack, K_THREAD_STACK_SIZEOF(vcom_toggle_stack),
-		ls0xx_vcom_toggle, (void *)dev, NULL, NULL, 3, 0, K_NO_WAIT);
+		ls0xx_vcom_toggle, (void *)dev, NULL, NULL, CONFIG_LS0XX_VCOM_THREAD_PRIO, 0, K_NO_WAIT);
 	k_thread_name_set(vcom_toggle_tid, "ls0xx_vcom");
 #endif /* USE_VCOM_THREAD */
 
